@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+  <meta charset="utf-8">
+  <title></title>
+</head>
+
+<body>
+  <script>
+    var dbName = 'sampleDB';
+    var storeName = 'sampleStore';
+    var keyValue = 'id20190219170246';
+
+    var dbVersion;
+
+    dateFormat = {
+      _fmt: { "yyyy": function (date) { return date.getFullYear() + ''; }, "MM": function (date) { return ('0' + (date.getMonth() + 1)).slice(-2); }, "dd": function (date) { return ('0' + date.getDate()).slice(-2); }, "hh": function (date) { return ('0' + date.getHours()).slice(-2); }, "mm": function (date) { return ('0' + date.getMinutes()).slice(-2); }, "ss": function (date) { return ('0' + date.getSeconds()).slice(-2); } },
+      _priority: ["yyyy", "MM", "dd", "hh", "mm", "ss"],
+      format: function (date, format) {
+        return this._priority.reduce((res, fmt) => res.replace(fmt, this._fmt[fmt](date)), format)
+      }
+    };
+
+    window.addEventListener('DOMContentLoaded', function () {
+      if (is_supported()) {
+        db_init();
+
+        // var dateStr = dateFormat.format(new Date(), 'yyyyMMddhhmmss');
+        // var data = { id: 'id' + dateStr, value: 'val' + dateStr };
+        // db_insert(data);
+
+        db_select(keyValue);
+        db_selectAll();
+
+        // db_deleteAll();
+      }
+    });
+
+    function is_supported() {
+      window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+      window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction || { READ_WRITE: "readwrite" };
+      window.IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange || window.msIDBKeyRange;
+      return window.indexedDB;
+    }
+
+    function db_init() {
+      var openReq = indexedDB.open(dbName);
+      openReq.onupgradeneeded = function (event) {
+        console.log('openReq.onupgradeneeded');
+        var db = event.target.result;
+        db.createObjectStore(storeName, { keyPath: 'id', autoIncrement: true })
+      }
+      openReq.onsuccess = function (event) {
+        console.log('openReq.onsuccess');
+        var db = event.target.result;
+        dbVersion = db.version;
+        console.log('dbVersion: ' + dbVersion);
+        db.close();
+      }
+      openReq.onerror = function (event) {
+        console.log('error: ' + event);
+      }
+    }
+
+    function db_deleteDb() {
+      var deleteReq = indexedDB.deleteDatabase(dbName);
+      deleteReq.onsuccess = function (event) {
+        console.log('deleteReq.onsuccess');
+      }
+      deleteReq.onerror = function (event) {
+        console.log('error: ' + event);
+      }
+    }
+
+    function db_delete(keyValue) {
+      var openReq = indexedDB.open(dbName);
+      openReq.onsuccess = function (event) {
+        var db = event.target.result;
+        if (db && storeName) {
+          var trans = db.transaction(storeName, 'readwrite');
+          if (trans) {
+            var store = trans.objectStore(storeName);
+            if (store) {
+              var deleteReq = store.delete(keyValue);
+              deleteReq.onsuccess = function (event) {
+                console.log('delete.onsuccess');
+              }
+              deleteReq.onerror = function (event) {
+                console.log('error: ' + event);
+              }
+              trans.oncomplete = function () {
+                console.log('transaction complete');
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function db_deleteAll() {
+      var openReq = indexedDB.open(dbName);
+      openReq.onsuccess = function (event) {
+        var db = event.target.result;
+        if (db && storeName) {
+          var trans = db.transaction(storeName, 'readwrite');
+          if (trans) {
+            var store = trans.objectStore(storeName);
+            if (store) {
+              var customers = [];
+              var getAllReq = store.openCursor();
+              getAllReq.onsuccess = function (event) {
+                var cursor = event.target.result;
+                if (cursor) {
+                  console.log('put: ' + cursor.value.id + " , " + cursor.value.value);
+                  db_delete(cursor.value.id);
+                  cursor.continue();
+                }
+                db.close();
+              }
+              trans.oncomplete = function () {
+                console.log('transaction complete');
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function db_insert(data) {
+      var openReq = indexedDB.open(dbName);
+      openReq.onsuccess = function (event) {
+        var db = event.target.result;
+        if (db && storeName) {
+          var trans = db.transaction(storeName, 'readwrite');
+          if (trans) {
+            var store = trans.objectStore(storeName);
+            if (store && data) {
+              var putReq = store.put(data);
+              putReq.onsuccess = function () {
+                console.log('put: ' + data.id + " , " + data.value);
+                db.close();
+              }
+              trans.oncomplete = function () {
+                console.log('transaction complete');
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function db_select(keyValue) {
+      var openReq = indexedDB.open(dbName);
+      openReq.onsuccess = function (event) {
+        var db = event.target.result;
+        if (db && storeName) {
+          var trans = db.transaction(storeName, 'readonly');
+          if (trans) {
+            var store = trans.objectStore(storeName);
+            if (store && keyValue) {
+              var getReq = store.get(keyValue);
+              getReq.onsuccess = function (event) {
+                if (event.target.result) {
+                  console.log('put: ' + event.target.result.id + " , " + event.target.result.value);
+                }
+                db.close();
+              }
+              trans.oncomplete = function () {
+                console.log('transaction complete');
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function db_selectAll() {
+      var openReq = indexedDB.open(dbName);
+      openReq.onsuccess = function (event) {
+        var db = event.target.result;
+        if (db && storeName) {
+          var trans = db.transaction(storeName, 'readwrite');
+          if (trans) {
+            var store = trans.objectStore(storeName);
+            if (store) {
+              var customers = [];
+              var getAllReq = store.openCursor();
+              getAllReq.onsuccess = function (event) {
+                var cursor = event.target.result;
+                if (cursor) {
+                  console.log('put: ' + cursor.value.id + " , " + cursor.value.value);
+                  cursor.continue();
+                }
+                db.close();
+              }
+              trans.oncomplete = function () {
+                console.log('transaction complete');
+              }
+            }
+          }
+        }
+      }
+    }
+  </script>
+</body>
+
+</html>
